@@ -1,20 +1,20 @@
 package BehaviorSystems;
 
-import Components.*;
+import Components.Collider;
+import Components.Collision;
+import Components.Component;
+import Components.Transform;
+import Main.Game;
 import SystemInterfaces.ICheckCollisions;
 import Utility.MiscFunctions;
 import Utility.Vec2;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
-
-import Main.Game;
+import java.util.Set;
+import java.util.Vector;
 
 public class CollisionSystem extends  BehaviorSystem implements ICheckCollisions {
-
-    //Reference to the main.Game controller object
-    public Game mainGame = null;
 
     //Centre is the centre of the simulation area, WidthHeight half of the width and height (centre + Widthheight is the topright corner),Takes the Transform THEN Collider
     @Override
@@ -26,19 +26,30 @@ public class CollisionSystem extends  BehaviorSystem implements ICheckCollisions
             refArray.add(i);
             currentTransforms.add((Transform) components.get(i*2));
             currentColliders.add((Collider) components.get((i*2)+1));
+            pushVectors.add(Vec2.Zero());
         }
 
         QuadTreeCollisions(refArray, Centre, WidthHeight );
 
         //Fixing the hard collisions HERE
+        for (int i = 0; i < pushVectors.size(); i++){
+            currentTransforms.get(i).Position = Vec2.Add(currentTransforms.get(i).Position , pushVectors.get(i));
+        }
 
         //emptying the list so they're not stored for longer than necessary
         currentTransforms.clear();
         currentColliders.clear();
 
         //adding the collisions to the Game for processing
-        if(mainGame!=null){mainGame.addCollisions(collisions);}
+        if(mainGame!=null && !collisions.isEmpty()){mainGame.addCollisions(collisions);}
+
+        collisions.clear();
+        pushVectors.clear();
     }
+
+    //Stores vectors to be added to the transforms so hard colliders arent colliders
+    ArrayList<Vec2> pushVectors = new ArrayList<>();
+
 
     //The current list of collisions
     ArrayList<Collision> collisions = new ArrayList<>();
@@ -83,7 +94,7 @@ public class CollisionSystem extends  BehaviorSystem implements ICheckCollisions
         //Checking quad sizes. if one is too big this function is called on it, otherwise collisions are checked within that list
         for (int i = 0; i < 4; i++) {
             //Too many so subdivides
-            if (QuadLists.get(i).size() >= maxInQuad){
+            if (QuadLists.get(i).size() > maxInQuad){
                 QuadTreeCollisions(QuadLists.get(i), centres[i], SubWidthHeight);
             }
             //not too many so checks collisions
@@ -103,14 +114,16 @@ public class CollisionSystem extends  BehaviorSystem implements ICheckCollisions
         Vec2 TopRight = Vec2.Add(Centre,WidthHeight);
         Vec2 BotLeft = Vec2.Subtract(Centre,WidthHeight);
 
-        //Returing true if the "Reach" point is within the bounds, thus meaning it is in the quad
+        //Returning true if the "Reach" point is within the bounds, thus meaning it is in the quad
         return (reach.x <= TopRight.x && reach.x >= BotLeft.x && reach.y <= TopRight.y && reach.y >= BotLeft.y);
     }
 
     void CheckCollisions(List<Integer> References){
         //for every collider-pair within the list
         for (int A = 0; A < References.size(); A++) {
+
             for (int B = A+1; B < References.size(); B++) {
+
                 //if this collision hasn't already been checked (two colliders can be overlapping in two or more quads which would create excess collisions)
                 if(!collisionHappened(A,B)) {
 
@@ -119,10 +132,10 @@ public class CollisionSystem extends  BehaviorSystem implements ICheckCollisions
                     Vec2 closestBtoA = GetClosestPosition(currentColliders.get(B), currentTransforms.get(B) ,Vec2.Add(currentTransforms.get(A).Position, currentColliders.get(A).OffsetVector));
 
                     //Checking whether the "Reach" point is in the other collider
-                    boolean AinB = isInCollider(currentColliders.get(B), currentTransforms.get(B),closestAtoB), BinA = isInCollider(currentColliders.get(A), currentTransforms.get(A), closestBtoA) ;
-                    if (BinA || AinB ) {
+                    boolean AinB = isInCollider(currentColliders.get(B), currentTransforms.get(B), closestAtoB);
+                    boolean BinA = isInCollider(currentColliders.get(A), currentTransforms.get(A), closestBtoA) ;
 
-                        System.out.println("Collision");
+                    if (BinA || AinB ) {
 
                         //There is a collision
                         Collision collision = new Collision();
@@ -153,11 +166,13 @@ public class CollisionSystem extends  BehaviorSystem implements ICheckCollisions
                         collision.normals[0] = getNormal(currentColliders.get(A), currentTransforms.get(A),collision.point);
                         collision.normals[1] = getNormal(currentColliders.get(B), currentTransforms.get(B),collision.point);
 
-
-
                         //Doing diff actions depending on the collider types (first digit is ordinal of A, second is ordinal of B)
                         switch (10 * currentColliders.get(A).colliderType.ordinal() + currentColliders.get(B).colliderType.ordinal()){
-                            case 00 ->{
+                            case 0 ->{
+                                //Updating the push directions
+                                pushVectors.set(A, Vec2.Add(pushVectors.get(A), Vec2.Subtract(collision.point, closestAtoB)));
+                                pushVectors.set(B, Vec2.Add(pushVectors.get(B), Vec2.Subtract(collision.point, closestBtoA)));
+
                                 collision.collisionType = Collision.CollisionTypes.Enter;
                                 break;
                             }
@@ -194,7 +209,8 @@ public class CollisionSystem extends  BehaviorSystem implements ICheckCollisions
                     }
 
                     //Managing leave triggers
-                    else {
+                    else if(currentColliders.get(A).containedColliders.contains(B) || currentColliders.get(B).containedColliders.contains(A)){
+
                         //There is a collision
                         Collision collision = new Collision();
                         collision.colliders = new int[]{A,B};
@@ -368,7 +384,7 @@ public class CollisionSystem extends  BehaviorSystem implements ICheckCollisions
                 float currentDistance = -1.0F;
                 Vec2 bestVector = Vec2.Zero();
                 for(Collider collider : currentcollider.colliders) {
-                    Vec2 normal = getNormal(currentcollider, currentTransform, position);
+                    Vec2 normal = getNormal(collider, currentTransform, position);
                     if (currentDistance < 0 || normal.getMagnitude() < currentDistance){
                         currentDistance = normal.getMagnitude();
                         bestVector = normal;
@@ -377,6 +393,7 @@ public class CollisionSystem extends  BehaviorSystem implements ICheckCollisions
                 return bestVector;
             }
         }
+
         //Catch
         return Vec2.Zero();
     }
@@ -384,16 +401,16 @@ public class CollisionSystem extends  BehaviorSystem implements ICheckCollisions
     //Checks whether a collision has already happened between two colliders
     boolean collisionHappened(int ref1, int ref2){
         int LeaveCollision = -1;
-        for(int i = 0; i < (long) collisions.size(); i++){
+        for(int i = 0; i < collisions.size(); i++){
             Collision collision = collisions.get(i);
             if(collision.ContainsColliders(ref1,ref2) && collision.collisionType != Collision.CollisionTypes.Leave){
-                if(LeaveCollision != -1){collisions.remove(LeaveCollision);}
                 return true;
             }
             else if(collision.collisionType == Collision.CollisionTypes.Leave){
                 LeaveCollision = i;
             }
         }
+        if(LeaveCollision != -1){collisions.remove(LeaveCollision);}
         return false;
     }
 }

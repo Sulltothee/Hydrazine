@@ -12,7 +12,7 @@ public abstract class Component {
     public boolean GetEnabled() {return enabled;}
 
     //The types of components
-    public static enum ComponentTypes{TestComponent, Transform, Rigidbody, Collider}
+    public static enum ComponentTypes{TestComponent, Transform, Rigidbody, Collider, Sprite}
 
     //The type of component this object is
     ComponentTypes TypeID;

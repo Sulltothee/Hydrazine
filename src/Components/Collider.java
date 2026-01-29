@@ -18,7 +18,7 @@ public class Collider extends Component {
     ColliderShapes Shape = ColliderShapes.Round;
 
     //References to colliders currently contained within this one (if it's a soft collider)
-    public ArrayList<Integer> containedColliders;
+    public ArrayList<Integer> containedColliders = new ArrayList<>();
 
     //The Height and width of the collider, Used for Box and Round
     public float Height = 1;
@@ -34,6 +34,8 @@ public class Collider extends Component {
     public Collider() {
         this.OffsetVector = Vec2.Zero();
         colliderType = colliderTypes.Hard;
+        Shape = ColliderShapes.Box;
+        TypeID = ComponentTypes.Collider;
     }
 
     //Hard colliders stop eachother while soft just log a collision

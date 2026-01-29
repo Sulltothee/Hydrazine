@@ -1,14 +1,15 @@
 package BehaviorSystems;
 
-import Components.Component;
-import Components.Rigidbody;
-import Components.Transform;
+import Components.*;
+import Main.Game;
+import SystemInterfaces.ICollide;
 import SystemInterfaces.IPhysicsUpdate;
 import Utility.Vec2;
 
+import java.text.CollationElementIterator;
 import java.util.ArrayList;
 
-public class RigidbodySimulator extends BehaviorSystem implements IPhysicsUpdate {
+public class RigidbodySimulator extends BehaviorSystem implements IPhysicsUpdate, ICollide {
 
     //Takes Transform THEN Rigidbody
     @Override
@@ -53,9 +54,6 @@ public class RigidbodySimulator extends BehaviorSystem implements IPhysicsUpdate
 
                 //Resets the acceleration
                 currentRigidbody.Acceleration = Vec2.Zero();
-
-                //TEST
-                currentTransform.Position.output("Rigidbody position " + i);
             }
         }
     }
@@ -71,5 +69,32 @@ public class RigidbodySimulator extends BehaviorSystem implements IPhysicsUpdate
 
         //Setting when and how this should be called
         Calls.add(CallTypes.PhysicsUpdate);
+        Calls.add(CallTypes.Collide);
+    }
+
+    //Takes Transform THEN Rigidbody, FIxing hard collisions. THis is SOOOOOO Jank
+    @Override
+    public void OnCollision(ArrayList<Collision> collisions, ArrayList<Integer> EntityIDs, ArrayList<Component> components) {
+        //For every collision
+        for(Collision collision : collisions){
+            //Aquiring references to the entities the colliders are associated with
+            int local0ID = EntityIDs.indexOf(collision.colliders[0]);
+            int local1ID = EntityIDs.indexOf(collision.colliders[1]);
+
+            //Aquiring references to the Transforms and rigidbodies that the colliders are associated with
+            Transform ZeroTransform = (Transform)components.get(2 * local0ID);
+            Transform OneTransform = (Transform)components.get(2 * local1ID);
+
+            Rigidbody ZeroRb = (Rigidbody) components.get((2 * local0ID) + 1);
+            Rigidbody OneRb = (Rigidbody) components.get((2 * local1ID) + 1);
+
+            //Adding force to Each rigibody equal to the normal of the other collider times the dotproduct of the other Velocity and the normal
+            Rigidbody.AddForce(OneRb, Vec2.Scale(Vec2.DotVector(ZeroRb.Velocity, collision.normals[0].getNormalized()), ZeroRb.Mass/OneRb.Mass));
+            Rigidbody.AddForce(ZeroRb, Vec2.Scale(Vec2.DotVector(OneRb.Velocity, collision.normals[1].getNormalized()), OneRb.Mass/ZeroRb.Mass));
+
+            //Rigidbodies applying reaction forces to themselves
+            Rigidbody.AddForce(ZeroRb, Vec2.Scale(Vec2.DotVector(ZeroRb.Velocity, collision.normals[0].getNormalized()).invert(), 3.7f));
+            Rigidbody.AddForce(OneRb, Vec2.Scale(Vec2.DotVector(OneRb.Velocity, collision.normals[1].getNormalized()).invert(), 3.7f));
+        }
     }
 }

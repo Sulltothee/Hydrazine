@@ -55,7 +55,7 @@ public class Vec2 {
     }
 
     public float getMagnitude() {
-        return (float)Math.sqrt(Math.pow((double)this.x, (double)2.0F) + Math.pow((double)this.y, (double)2.0F));
+        return (float)Math.sqrt(Math.pow(this.x, 2.0F) + Math.pow(this.y, 2.0F));
     }
 
     public Vec2 invert() {
@@ -93,6 +93,10 @@ public class Vec2 {
 
     public static float Dot(Vec2 v1, Vec2 v2) {
         return (v1.x * v2.x) + (v1.y * v2.y);
+    }
+
+    public static Vec2 DotVector(Vec2 v1, Vec2 v2) {
+        return new Vec2 ((v1.x * v2.x) , (v1.y * v2.y));
     }
 
     public void output(String header) {

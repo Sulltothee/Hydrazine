@@ -1,19 +1,23 @@
 package Main;
 
-import BehaviorSystems.BehaviorSystem;
-import BehaviorSystems.CollisionSystem;
-import BehaviorSystems.RigidbodySimulator;
-import BehaviorSystems.TestSystem;
+import BehaviorSystems.*;
 import Components.*;
+import Components.Component;
 import SystemInterfaces.*;
 import Utility.Vec2;
 
+import javax.imageio.ImageIO;
+import java.awt.*;
+import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.util.ArrayList;
 import java.util.BitSet;
 
 public class Game implements Runnable
 {
+    Vec2 CameraLocation = Vec2.Zero();
+    Vec2 CameraScope = new Vec2(10);
+
     //The window the game renders on
     private GameWindow gameWindow;
 
@@ -36,7 +40,7 @@ public class Game implements Runnable
     ArrayList<ArrayList<Component>> Components = new ArrayList<>(Component.ComponentTypes.values().length);
 
     //All the classes of components in type order
-    static Class[] ComponentClasses = {TestComponent.class, Transform.class, Rigidbody.class, Collider.class};
+    static Class[] ComponentClasses = {TestComponent.class, Transform.class, Rigidbody.class, Collider.class, Sprite.class};
 
     //All the systems
     ArrayList<BehaviorSystem> Systems = new ArrayList<>();
@@ -52,7 +56,7 @@ public class Game implements Runnable
     //Constructor
     public Game(){
         //Initializing the window
-        gameWindow = new GameWindow();
+        gameWindow = new GameWindow(this);
 
         //Initializing the arraylists
         for (int i = 0; i < Component.ComponentTypes.values().length; i++) {
@@ -66,27 +70,35 @@ public class Game implements Runnable
         InstantiateSystem(TestSystem.class);
         InstantiateSystem(RigidbodySimulator.class);
         InstantiateSystem(CollisionSystem.class);
+        InstantiateSystem(SpriteRenderer.class);
 
         //setting values to be given to the constructor
         BitSet components = new BitSet(Component.ComponentTypes.values().length);
         components.set(Component.ComponentTypes.Rigidbody.ordinal());
         components.set(Component.ComponentTypes.Transform.ordinal());
         components.set(Component.ComponentTypes.Collider.ordinal());
+        components.set(Component.ComponentTypes.Sprite.ordinal());
         BitSet systems = new BitSet(BehaviorSystem.SystemTypes.values().length);
         systems.set(BehaviorSystem.SystemTypes.RigidbodySimulator.ordinal());
         systems.set(BehaviorSystem.SystemTypes.CollisionSystem.ordinal());
+        systems.set(BehaviorSystem.SystemTypes.SpriteRenderer.ordinal());
 
         //Adding entities
         InstantiateEntity(components,systems);
 
-        Transform t = (Transform)getComponent(Component.ComponentTypes.Transform, 0); t.Position.x += 20;
-
         InstantiateEntity(components, systems);
-        Rigidbody r = (Rigidbody) getComponent(Component.ComponentTypes.Rigidbody, 1); Rigidbody.AddForce(r,new Vec2(10,0));
+
+        Rigidbody.AddForce((Rigidbody)(getComponent(Component.ComponentTypes.Rigidbody,0)), new Vec2(2,0));
+        ((Transform)getComponent(Component.ComponentTypes.Transform,1)).Position = new Vec2(5,0);
+        try {
+            ((Sprite)getComponent(Component.ComponentTypes.Sprite,1)).sprite = ImageIO.read(getClass().getResourceAsStream("/Robot.png"));
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     //Returns the component with type type associated with entity Entity)
-    Component getComponent(Component.ComponentTypes Type, int entity){
+    public Component getComponent(Component.ComponentTypes Type, int entity){
         return Components.get(Type.ordinal()).get(entity);
     }
 
@@ -112,6 +124,9 @@ public class Game implements Runnable
             for (BehaviorSystem.CallTypes calltype : newSystem.Calls) {
                 CallList.get(calltype.ordinal()).add(sysIndex);
             }
+
+            //adding this object as a reference if it wants it
+            newSystem.setMainGame(this);
 
             //returning the system for (potential) further modification
             return newSystem;
@@ -215,9 +230,10 @@ public class Game implements Runnable
             //Fix hard collisions
 
             //Run collision triggers
-            //Collide();
+            RunCollisions();
 
-            //Render
+            //Rendering
+            gameWindow.gPanel.repaint();
 
             //Update delta time
             deltaTime =  System.nanoTime() - FrameStartTime;
@@ -297,9 +313,11 @@ public class Game implements Runnable
 
     //Checks Collisions between colliders and adds collisontriggers 
     void CheckCollisions(){
+
         //needs to take camera and simulation range
         try {
-            ArrayList<Object> argList = new ArrayList<Object>();
+            ArrayList<Object> argList = new ArrayList<>();
+
             //Adding the centre point
             argList.add(Vec2.Zero());
 
@@ -318,11 +336,67 @@ public class Game implements Runnable
 
     //Runs collision triggers
     void RunCollisions(){
+        if(!collisionList.isEmpty()) {
 
+            //compiling a list of all the collided component IDS
+            ArrayList<Integer> collidedEntities = new ArrayList<>();
+            for (Collision collision : collisionList){
+                if(!collidedEntities.contains(collision.colliders[0])){
+                    collidedEntities.add(collision.colliders[0]);
+                }
 
-        //Emptying the collision list
-        collisionList.clear();
+                if(!collidedEntities.contains(collision.colliders[1])){
+                    collidedEntities.add(collision.colliders[1]);
+                }
+            }
+
+            //For every system with a collision
+            for(int SystemIndex : CallList.get(BehaviorSystem.CallTypes.Collide.ordinal())){
+                //list of components to be passed to the system
+                ArrayList<Component> ArgumentComponents = new ArrayList<>();
+
+                //List of Entity IDs in the order they appear in the components
+                ArrayList<Integer> EntityIDs = new ArrayList<>();
+
+                //For every Main.Entity affected by that system
+                for(int EntityIndex : Systems.get(SystemIndex).AffectingObjects){
+
+                    //if the Main.Entity has all the reliant components and was involved in a collision
+                    BitSet comparison = (BitSet)Systems.get(SystemIndex).ReliantComponents.clone();
+                    comparison.and(Entities.get(EntityIndex).Archetype);
+
+                    if(comparison.cardinality() == Systems.get(SystemIndex).ReliantComponents.cardinality() && collidedEntities.contains(EntityIndex)){
+
+                        EntityIDs.add(EntityIndex);
+
+                        //The index of the first component type
+                        int pSetBit = comparison.nextSetBit(0);
+
+                        //Adding all the necessary components to the list
+                        for (int i = 0; i < comparison.cardinality(); i++) {
+                            //Adding the component to the list
+                            ArgumentComponents.add(Components.get(pSetBit).get(EntityIndex));
+
+                            //Getting the next necessary component type
+                            pSetBit = comparison.nextSetBit(pSetBit+1);
+                        }
+                    }
+                }
+
+                //Running The relevant function after all the components have been accumulated
+                ((ICollide)Systems.get(SystemIndex)).OnCollision(collisionList, EntityIDs , ArgumentComponents);
+            }
+
+            //Emptying the collision list
+            collisionList.clear();
+        }
     }
+
+    //Renders
+    public void Render(Graphics2D g){
+        CallTimes(BehaviorSystem.CallTypes.Render, g );
+    }
+
 
     //Calls every system with a given calltype. calls the given method with the given parameters with the necessary components after ordered by the "parent" entity then sub-ordered buy the components ID
     void CallTimes(BehaviorSystem.CallTypes calltype, Object parameter)
@@ -381,7 +455,7 @@ public class Game implements Runnable
                     break;
                 }
                 case Render -> {
-                    ((IRender)Systems.get(SystemIndex)).Render(ArgumentComponents);
+                    ((IRender)Systems.get(SystemIndex)).Render( (Graphics2D)parameters.getFirst(), CameraLocation, CameraScope,new Vec2(gameWindow.GetWidth()/2, gameWindow.GetHeight()/2),ArgumentComponents);
                     break;
                 }
             }

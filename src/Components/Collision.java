@@ -7,7 +7,7 @@ public class Collision {
     //references to the colliders involved
     public int[] colliders = new int[2];
 
-    //Vectors that define the normal to the surface at the point
+    //Vectors that define the normal to the surface at the point (normal 0 is 0->1, 1 is 1->0)
     public Vec2[] normals = new Vec2[2];
 
     //Where the collision actually happened
