@@ -170,8 +170,8 @@ public class CollisionSystem extends  BehaviorSystem implements ICheckCollisions
                         switch (10 * currentColliders.get(A).colliderType.ordinal() + currentColliders.get(B).colliderType.ordinal()){
                             case 0 ->{
                                 //Updating the push directions
-                                pushVectors.set(A, Vec2.Add(pushVectors.get(A), Vec2.Subtract(collision.point, closestAtoB)));
-                                pushVectors.set(B, Vec2.Add(pushVectors.get(B), Vec2.Subtract(collision.point, closestBtoA)));
+                                pushVectors.set(A, Vec2.Add(pushVectors.get(A), collision.normals[1]));
+                                pushVectors.set(B, Vec2.Add(pushVectors.get(B), collision.normals[0]));
 
                                 collision.collisionType = Collision.CollisionTypes.Enter;
                                 break;
@@ -310,12 +310,12 @@ public class CollisionSystem extends  BehaviorSystem implements ICheckCollisions
 
         switch (currentcollider.getShape()){
             case Box -> {
-                return position.x >= colliderCentre.x - currentcollider.Width / 2.0F && position.x <= colliderCentre.x + currentcollider.Width / 2.0F && position.y >= colliderCentre.y - currentcollider.Height / 2.0F && position.y <= colliderCentre.y + currentcollider.Height / 2.0F;
+                return position.x > colliderCentre.x - currentcollider.Width / 2.0F && position.x < colliderCentre.x + currentcollider.Width / 2.0F && position.y > colliderCentre.y - currentcollider.Height / 2.0F && position.y < colliderCentre.y + currentcollider.Height / 2.0F;
             }
             case Round -> {
                 Vec2 hereToThere = Vec2.Subtract(position, colliderCentre);
                 hereToThere.x *= currentcollider.Height / currentcollider.Width;
-                return hereToThere.getMagnitude() <= currentcollider.Height / 2.0F;
+                return hereToThere.getMagnitude() < currentcollider.Height / 2.0F;
             }
             case Vertex -> {
                 if (currentcollider.vertexes.length < 2) {

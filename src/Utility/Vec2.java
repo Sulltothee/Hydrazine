@@ -148,6 +148,6 @@ public class Vec2 {
     }
 
     public static boolean isInEdge(Vec2 a, Vec2 b, Vec2 position) {
-        return 0.0F <= Vec2.GetDistanceFromLine(a, b, position);
+        return 0.0F < Vec2.GetDistanceFromLine(a, b, position);
     }
 }
