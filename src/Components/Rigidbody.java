@@ -45,7 +45,7 @@ public class Rigidbody extends Component {
 
     public static void AddForce(Rigidbody rb, Vec2 Force){
         //Calculating the friction force
-        Vec2 FrictionForce = Vec2.Scale(Force, rb.surfaceInfo.CoefficientofFriction);
+        Vec2 FrictionForce = Vec2.Scale(Force.invert(), rb.surfaceInfo.CoefficientofFriction);
         if(FrictionForce.getMagnitude() > rb.GetMaxFriction())
         {FrictionForce = Vec2.SetMagnitude(FrictionForce,rb.GetMaxFriction());}
 

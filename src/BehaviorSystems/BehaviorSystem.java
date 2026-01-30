@@ -18,11 +18,11 @@ public abstract class BehaviorSystem {
     //The components this system requires to run
     public BitSet ReliantComponents = new BitSet(16);
 
-    public static enum SystemTypes {TestSystem, RigidbodySimulator, CollisionSystem, SpriteRenderer}
+    public static enum SystemTypes {TestSystem, RigidbodySimulator, CollisionSystem, SpriteRenderer, Player}
     public SystemTypes Type;
 
     //Types of times to be called
-    public static enum CallTypes{Start, Update, PhysicsUpdate, CheckCollisions, Collide ,Render}
+    public static enum CallTypes{Start, Update, PhysicsUpdate, CheckCollisions, Collide ,Render, Input}
 
     //The call type of this System
     public ArrayList<CallTypes> Calls = new ArrayList<>();

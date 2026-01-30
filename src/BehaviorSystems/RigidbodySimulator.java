@@ -32,17 +32,22 @@ public class RigidbodySimulator extends BehaviorSystem implements IPhysicsUpdate
 
                 //Adding frictional force if the object is moving if that setting is enabled
                 if (currentRigidbody.SimulateKineticFriction) {
-                    Vec2 frictionForce = Vec2.Scale(currentRigidbody.Velocity.invert(), currentRigidbody.surfaceInfo.CoefficientofFriction);
+                    Vec2 frictionForce = Vec2.Scale(currentRigidbody.Velocity.getNormalized().invert() , deltaTime * currentRigidbody.GetMaxFriction());
 
-                    if (frictionForce.getMagnitude() > currentRigidbody.GetMaxFriction() * deltaTime) {
-                        Vec2.SetMagnitude(frictionForce, currentRigidbody.GetMaxFriction() * deltaTime);
+                    if(frictionForce.getMagnitude() > currentRigidbody.Velocity.getMagnitude()){
+                        frictionForce = Vec2.SetMagnitude(frictionForce, currentRigidbody.Velocity.getMagnitude());
                     }
+
+                    if(frictionForce.getMagnitude() > 0.05) {System.out.println(frictionForce.getMagnitude());}
 
                     Rigidbody.AddAcceleration(currentRigidbody, frictionForce);
                 }
 
                 //Updating the entity's position
                 currentTransform.Position = Vec2.Add(new Vec2[]{currentTransform.Position, currentRigidbody.Velocity, Vec2.Scale(currentRigidbody.Acceleration, (float) 1 / 2)});
+
+
+                Vec2 oldVelocity = Vec2.Copy(currentRigidbody.Velocity);
 
                 //Updating the entity's velocity
                 currentRigidbody.Velocity = Vec2.Add(currentRigidbody.Velocity, currentRigidbody.Acceleration);
@@ -88,13 +93,16 @@ public class RigidbodySimulator extends BehaviorSystem implements IPhysicsUpdate
             Rigidbody ZeroRb = (Rigidbody) components.get((2 * local0ID) + 1);
             Rigidbody OneRb = (Rigidbody) components.get((2 * local1ID) + 1);
 
-            //Adding force to Each rigibody equal to the normal of the other collider times the dotproduct of the other Velocity and the normal
-            Rigidbody.AddForce(OneRb, Vec2.Scale(Vec2.DotVector(ZeroRb.Velocity, collision.normals[0].getNormalized()), ZeroRb.Mass/OneRb.Mass));
-            Rigidbody.AddForce(ZeroRb, Vec2.Scale(Vec2.DotVector(OneRb.Velocity, collision.normals[1].getNormalized()), OneRb.Mass/ZeroRb.Mass));
+            //Elastic collision maths don't @ me
 
-            //Rigidbodies applying reaction forces to themselves
-            Rigidbody.AddForce(ZeroRb, Vec2.Scale(Vec2.DotVector(ZeroRb.Velocity, collision.normals[0].getNormalized()).invert(), 3.7f));
-            Rigidbody.AddForce(OneRb, Vec2.Scale(Vec2.DotVector(OneRb.Velocity, collision.normals[1].getNormalized()).invert(), 3.7f));
+            Vec2 NormalVec0 =  Vec2.Scale(collision.normals[0].getNormalized() ,Vec2.Dot(ZeroRb.Velocity, collision.normals[0].getNormalized()));
+            Vec2 NormalVec1 =   Vec2.Scale(collision.normals[1].getNormalized() ,Vec2.Dot(OneRb.Velocity, collision.normals[1].getNormalized()));
+
+            Vec2 newVelocity0 = Vec2.Add(Vec2.Scale(NormalVec0 ,(ZeroRb.Mass - OneRb.Mass)/(OneRb.Mass + ZeroRb.Mass)) , Vec2.Scale(NormalVec1 ,(OneRb.Mass * 2)/(OneRb.Mass + ZeroRb.Mass)));
+            Vec2 newVelocity1 = Vec2.Add(Vec2.Scale(NormalVec1 ,(OneRb.Mass - ZeroRb.Mass)/(OneRb.Mass + ZeroRb.Mass)) , Vec2.Scale(NormalVec0 ,(ZeroRb.Mass * 2)/(OneRb.Mass + ZeroRb.Mass)));
+
+            Rigidbody.AddAcceleration(ZeroRb, Vec2.Subtract(newVelocity0,ZeroRb.Velocity));
+            Rigidbody.AddAcceleration(OneRb, Vec2.Subtract(newVelocity1,OneRb.Velocity));
         }
     }
 }

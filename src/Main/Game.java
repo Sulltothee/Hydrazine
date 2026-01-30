@@ -3,6 +3,7 @@ package Main;
 import BehaviorSystems.*;
 import Components.*;
 import Components.Component;
+import ProjectScripts.Player;
 import SystemInterfaces.*;
 import Utility.Vec2;
 
@@ -15,6 +16,8 @@ import java.util.BitSet;
 
 public class Game implements Runnable
 {
+    inputManager imanager = new inputManager();
+
     Vec2 CameraLocation = Vec2.Zero();
     Vec2 CameraScope = new Vec2(10);
 
@@ -28,7 +31,7 @@ public class Game implements Runnable
     private int FPScurrent;
 
     //The maximum frames per second
-    private float FPSmax = 20f;
+    private float FPSmax = 60f;
 
     //List of empty Main.Entity slots
     ArrayList<Integer> emptyEntitySlots = new ArrayList<>();
@@ -57,6 +60,9 @@ public class Game implements Runnable
     public Game(){
         //Initializing the window
         gameWindow = new GameWindow(this);
+        gameWindow.gPanel.addKeyListener(imanager);
+        gameWindow.gPanel.setFocusable(true);
+        gameWindow.gPanel.grabFocus();
 
         //Initializing the arraylists
         for (int i = 0; i < Component.ComponentTypes.values().length; i++) {
@@ -71,6 +77,7 @@ public class Game implements Runnable
         InstantiateSystem(RigidbodySimulator.class);
         InstantiateSystem(CollisionSystem.class);
         InstantiateSystem(SpriteRenderer.class);
+        InstantiateSystem(Player.class);
 
         //setting values to be given to the constructor
         BitSet components = new BitSet(Component.ComponentTypes.values().length);
@@ -83,18 +90,15 @@ public class Game implements Runnable
         systems.set(BehaviorSystem.SystemTypes.CollisionSystem.ordinal());
         systems.set(BehaviorSystem.SystemTypes.SpriteRenderer.ordinal());
 
+
         //Adding entities
         InstantiateEntity(components,systems);
 
-        InstantiateEntity(components, systems);
+        systems.set(BehaviorSystem.SystemTypes.Player.ordinal());
 
-        Rigidbody.AddForce((Rigidbody)(getComponent(Component.ComponentTypes.Rigidbody,0)), new Vec2(2,0));
-        ((Transform)getComponent(Component.ComponentTypes.Transform,1)).Position = new Vec2(5,0);
-        try {
-            ((Sprite)getComponent(Component.ComponentTypes.Sprite,1)).sprite = ImageIO.read(getClass().getResourceAsStream("/Robot.png"));
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
+        InstantiateEntity(components,systems);
+
+        ((Transform)getComponent(Component.ComponentTypes.Transform, 1)).Position.x -= 2;
     }
 
     //Returns the component with type type associated with entity Entity)
@@ -205,12 +209,17 @@ public class Game implements Runnable
         long deltaTime = (long)(1e9/FPSmax);
 
         //The nanoTime when the frame started
-        long FrameStartTime;
+        long FrameStartTime = System.nanoTime();
 
         //The nanotime between frames on the maximum fps
         long maxDeltaTime = (long)(1e9/FPSmax);
 
+        System.out.println(maxDeltaTime);
+
         while(gameThread != null){
+            //Update delta time
+            deltaTime =  System.nanoTime() - FrameStartTime;
+
             //Updating the frame's start time for FPS calculation
             FrameStartTime = System.nanoTime();
 
@@ -218,16 +227,17 @@ public class Game implements Runnable
             //Empty the start Queue
             RunStarts();
 
+            //Taking inputs
+            Input(deltaTime/1e9f);
+
             //Run Update functions
             Update(deltaTime/1e9f);
 
             //Run physics calculations
-            PhysicsUpdate(deltaTime);
+            PhysicsUpdate(deltaTime/1e9f);
 
             //Run collision checks
             CheckCollisions();
-
-            //Fix hard collisions
 
             //Run collision triggers
             RunCollisions();
@@ -235,17 +245,14 @@ public class Game implements Runnable
             //Rendering
             gameWindow.gPanel.repaint();
 
-            //Update delta time
-            deltaTime =  System.nanoTime() - FrameStartTime;
-
             //UpdateFrameRate
-            FPScurrent = (int)(1/(deltaTime + 1));
+            FPScurrent = (int)(1/(deltaTime/1e9 + 1));
 
             //Sleeping if the max FPS was exceeded
-            if(deltaTime < maxDeltaTime){
+            if(System.nanoTime() - FrameStartTime < maxDeltaTime){
                 try
                 {
-                    Thread.sleep((long)((maxDeltaTime-deltaTime)/1e6));
+                    Thread.sleep((long)((maxDeltaTime-(System.nanoTime() - FrameStartTime))/1e6));
                 }
                 catch (InterruptedException ie)
                 {
@@ -291,6 +298,15 @@ public class Game implements Runnable
 
         //Emptying the startlist
         StartList.clear();
+    }
+
+    //Runs on objects that receive inputs
+    void Input(float deltaTime){
+        try {
+            CallTimes(BehaviorSystem.CallTypes.Input, deltaTime);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
 
     //Runs every frame, takes the time in seconds for the last frame to complete
@@ -457,6 +473,9 @@ public class Game implements Runnable
                 case Render -> {
                     ((IRender)Systems.get(SystemIndex)).Render( (Graphics2D)parameters.getFirst(), CameraLocation, CameraScope,new Vec2(gameWindow.GetWidth()/2, gameWindow.GetHeight()/2),ArgumentComponents);
                     break;
+                }
+                case Input -> {
+                    ((IInput)Systems.get(SystemIndex)).RecieveInputs(imanager.pressedKeys, (float)parameters.getFirst(), ArgumentComponents);
                 }
             }
         }

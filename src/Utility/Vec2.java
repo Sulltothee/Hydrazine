@@ -95,10 +95,6 @@ public class Vec2 {
         return (v1.x * v2.x) + (v1.y * v2.y);
     }
 
-    public static Vec2 DotVector(Vec2 v1, Vec2 v2) {
-        return new Vec2 ((v1.x * v2.x) , (v1.y * v2.y));
-    }
-
     public void output(String header) {
         System.out.println(header + ": (" + this.x + "," + this.y + ")");
     }

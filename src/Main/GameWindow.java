@@ -20,6 +20,7 @@ public class GameWindow
 
         frame.setTitle(WindowName);
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        frame.setFocusable(true);
 
         gPanel = new GamePanel(game);
         frame.add(gPanel);
